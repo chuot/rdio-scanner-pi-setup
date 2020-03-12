@@ -1,0 +1,724 @@
+#!/bin/bash
+
+USER=radio
+PASSWORD=scanner
+
+abort() {
+	echo "Aborting!"
+
+	exit 254
+}
+
+assert_os() {
+	echo -n "### Checking operating system..."
+
+	test -e /etc/os-release && source /etc/os-release
+	
+	if [ "$ID $VERSION" = "raspbian 10 (buster)" ]
+		then
+			echo " ok"
+		else
+			echo " failed"
+			echo ""
+			echo "This script will install all the Rdio Scanner components on a freshly installed Raspbian Buster"
+
+			abort
+	fi
+}
+
+assert_sudo() {
+	echo -n "### Checking sudo capabilities..."
+
+	if $(sudo -n true 2>/dev/null)
+		then
+			echo " ok"
+		else
+			echo " failed"
+			echo ""
+			echo "Unable to sudo without a password. Make sure that user $(whoami) has the appropriate sudoers permissions."
+
+			abort
+	fi
+}
+
+setup_fdkaac() {
+	echo -n "### Checking fdkaac availability..."
+
+	if [ -n "$(which fdkaac)" ]
+		then
+			echo " ok"
+		else
+			echo " installing..."
+
+			test -e /usr/local/lib/libfdk-aac.a || {
+				sudo -u $USER -i bash -c "
+					test -d src/libfdk-aac || git clone https://github.com/mstorsjo/fdk-aac src/libfdk-aac;
+					cd src/libfdk-aac;
+					test -e configure || ./autogen.sh;
+					test -e Makefile || ./configure;
+					test -e libfdk-aac.la || make;
+				" || abort
+
+				sudo -s bash -c "cd /home/${USER}/src/libfdk-aac; make install; ldconfig" || abort
+			}
+
+			test -e /usr/local/bin/fdkaac || {
+				sudo -u $USER -i bash -c "
+					test -d src/fdkaac || git clone https://github.com/nu774/fdkaac.git src/fdkaac;
+					cd src/fdkaac;
+					test -e configure || autoreconf -i;
+					test -e Makefile || ./configure;
+					test -x fdkaac || make;
+				" || abort
+
+				sudo -s bash -c "cd /home/${USER}/src/fdkaac; make install" || abort
+			}
+	fi
+}
+
+setup_locale() {
+	echo -n "### Checking system locales..."
+
+	if $(grep -q "^en_US.UTF-8 UTF-8" /etc/locale.gen)
+		then
+			echo " ok"
+		else
+			echo " configuring..."
+
+			sudo sed -e "s/^.*\(en_US.UTF-8 UTF-8\)$/\1/" -i /etc/locale.gen
+
+			sudo locale-gen
+	fi
+}
+
+setup_nginx() {
+	echo -n "### Checking nginx availability..."
+
+	if [ -d "/etc/nginx" ]
+		then
+			echo " ok"
+		else
+			echo " installing..."
+
+			sudo apt install -y nginx || abort
+
+			test -e /etc/nginx/sites-enabled/default && sudo rm -f /etc/nginx/sites-enabled/default
+
+			echo | sudo tee /etc/nginx/sites-available/rdio-scanner >/dev/null <<-EOT
+				upstream rdio-scanner {
+				    server 127.0.0.1:3000;
+				}
+
+				server {
+				    listen 80 default_server;
+				    listen [::]:80 default_server;
+
+				    server_name _;
+
+				    location / {
+				        proxy_pass http://rdio-scanner;
+				        proxy_http_version 1.1;
+						proxy_read_timeout 1d;
+				        proxy_set_header Upgrade \$http_upgrade;
+				        proxy_set_header Connection "upgrade";
+				        proxy_set_header Host \$host;
+				    }
+				}
+			EOT
+
+			test -L /etc/nginx/sites-enabled/rdio-scanner || sudo ln -s /etc/nginx/sites-available/rdio-scanner /etc/nginx/sites-enabled/rdio-scanner
+
+			sudo systemctl restart nginx
+	fi
+}
+
+setup_nodejs() {
+	echo -n "### Checking Node.js availability..."
+
+	if [ -n "$(which node)" -a "$($(which node) -v)" \> "v10" ]
+		then
+			echo " ok"
+		else
+			echo " installing..."
+
+			curl -sL https://deb.nodesource.com/setup_12.x | sudo bash -
+
+			sudo apt install -y nodejs
+	fi
+}
+
+setup_prerequisites() {
+	pkgs="autoconf automake build-essential cmake git gnuradio gnuradio-dev gr-osmosdr libboost-all-dev libhackrf-dev libssl-dev libuhd-dev pkg-config"
+
+	echo -n "### Checking prerequisites..."
+
+	if $(dpkg-query -f '${Status}\n' -W $pkgs 2>&1 | grep -q -e 'not-installed' -e 'no packages found matching')
+		then
+			echo " installing..."
+
+			sudo apt install -y $pkgs
+
+			sudo udevadm trigger
+		else
+			echo " ok"
+	fi
+}
+
+setup_rdio_scanner() {
+	clone() {
+		echo -n "### Checking Rdio Scanner..."
+
+		if [ -d "/home/${USER}/rdio-scanner" ]
+			then
+				echo " ok"
+			else
+				echo " installing..."
+
+				sudo -u $USER -i git clone https://github.com/chuot/rdio-scanner.git || abort
+		fi
+	}
+
+	backend_modules() {
+		echo -n "### Checking Rdio Scanner backend modules..."
+
+		if [ -d "/home/${USER}/rdio-scanner/server/node_modules" ]
+			then
+				echo " ok"
+			else
+				echo " installing..."
+
+				sudo -u $USER -i bash -c "cd rdio-scanner/server && npm i" || abort
+		fi
+	}
+
+	frontend_modules() {
+		echo -n "### Checking Rdio Scanner frontend modules..."
+
+		if [ -d "/home/${USER}/rdio-scanner/client/node_modules" ]
+			then
+				echo " ok"
+			else
+				echo " installing..."
+
+				sudo -u $USER -i bash -c "cd rdio-scanner/client && NG_CLI_ANALYTICS=ci npm i" || abort
+		fi
+	}
+
+	config() {
+		echo -n "### Checking Rdio Scanner config..."
+
+		if [ -e "/home/${USER}/rdio-scanner/server/.env" ]
+			then
+				echo " ok"
+			else
+				echo " configuring..."
+
+				echo | sudo -u $USER -i tee /home/${USER}/rdio-scanner/server/.env >/dev/null <<-EOT
+					DB_DIALECT=sqlite
+					DB_STORAGE=database.sqlite
+
+					NODE_ENV=production
+					NODE_HOST=localhost
+					NODE_PORT=3000
+
+					RDIO_APIKEYS=["$(cat /proc/sys/kernel/random/uuid)"]
+					RDIO_PRUNEDAYS=7
+				EOT
+		fi
+	}
+
+	database() {
+		echo -n "### Checking Rdio Scanner database..."
+
+		if [ -e "/home/${USER}/rdio-scanner/server/database.sqlite" ]
+			then
+				echo " ok"
+			else
+				echo " creating..."
+
+				sudo -u $USER -i bash -c "cd rdio-scanner/server && npm run migrate"
+		fi
+	}
+
+	build() {
+		echo -n "### Checking Rdio Scanner frontend app..."
+
+		if [ -d "/home/${USER}/rdio-scanner/client/dist" ]
+			then
+				echo " ok"
+			else
+				echo " building..."
+
+				sudo -u $USER -i bash -c "cd rdio-scanner/client && npm run build" || abort
+		fi
+	}
+
+	systemd() {
+		echo -n "### Checking Rdio Scanner server systemd service..."
+
+		if [ -e "/etc/systemd/system/rdio-scanner.service" ]
+			then
+				echo " ok"
+			else
+				echo " configuring..."
+
+			echo | sudo tee /etc/systemd/system/rdio-scanner.service >/dev/null <<-EOT
+				[Unit]
+				Description=Rdio Scanner
+				After=network.target
+
+				[Service]
+				WorkingDirectory=/home/${USER}/rdio-scanner/server
+				ExecStart=/usr/bin/node index.js
+				Restart=always
+				StandardOutput=syslog
+				StandardError=syslog
+				SyslogIdentifier=Rdio Scanner
+				User=$USER
+				Group=$USER
+
+				[Install]
+				WantedBy=multi-user.target
+			EOT
+
+			sudo systemctl daemon-reload
+
+			sudo systemctl enable rdio-scanner.service
+
+			sudo systemctl start rdio-scanner.service
+		fi
+	}
+
+	clone
+	backend_modules
+	frontend_modules
+	config
+	database
+	build
+	systemd
+}
+
+setup_swap() {
+	echo -n "### Checking swap size..."
+
+	if [ $(free | awk '/Swap:/{ print $2 }') -ge 1048572 ]
+		then
+			echo " ok"
+		else
+			echo " resizing..."
+
+			sudo dphys-swapfile swapoff
+
+			sudo sed -e 's/^.*CONF_SWAPSIZE=.*$/CONF_SWAPSIZE=1024/' -i /etc/dphys-swapfile
+
+			sudo dphys-swapfile setup
+
+			sudo dphys-swapfile swapon
+	fi
+}
+
+setup_trunk_recorder() {
+	clone() {
+		echo -n "### Checking Trunk Recorder..."
+
+		if [ -d "/home/${USER}/src/trunk-recorder" ]
+			then
+				echo " ok"
+			else
+				echo " installing..."
+
+				test -d /home/${USER}/src || sudo -u ${USER} -i mkdir src
+
+				sudo -u $USER -i bash -c "cd src && git clone https://github.com/robotastic/trunk-recorder.git" || abort
+		fi
+	}
+
+	configure() {
+		echo -n "### Checking Trunk Recorder Makefile..."
+
+		if [ -e "/home/${USER}/src/trunk-recorder/Makefile" ]
+			then
+				echo " ok"
+			else
+				echo " configuring..."
+				sudo -u $USER -i bash -c "cd src/trunk-recorder && cmake ." || abort
+		fi
+	}
+
+	build() {
+		echo -n "### Checking Trunk Recorder build..."
+
+		if [ -x "/home/${USER}/src/trunk-recorder/recorder" ]
+			then
+				echo " ok"
+			else
+				echo " compiling..."
+				sudo -u $USER -i bash -c "cd src/trunk-recorder && make" || abort
+		fi
+	}
+
+	install() {
+		echo -n "### Checking Trunk Recorder installation..."
+
+		if [ -e "/home/${USER}/trunk-recorder/recorder" ]
+			then
+				echo " ok"
+			else
+				echo " installing..."
+
+				test -d "/home/${USER}/trunk-recorder" || sudo -u $USER -i mkdir trunk-recorder
+
+				test -x "/home/${USER}/src/trunk-recorder/recorder" && sudo -u $USER -i bash -c "cp src/trunk-recorder/recorder trunk-recorder"
+		fi
+	}
+
+	scripts() {
+		echo -n "### Checking Trunk Recorder scripts..."
+
+		if [ -d "/home/${USER}/trunk-recorder/scripts" ]
+			then
+				echo " ok"
+			else
+				echo " configuring..."
+
+				sudo -u $USER -i mkdir trunk-recorder/scripts
+
+				api_key=$(awk -F\" '/^RDIO_APIKEYS=/ { print $2 }' /home/${USER}/rdio-scanner/server/.env)
+
+				echo | sudo -u $USER -i tee trunk-recorder/scripts/upload-aliases >/dev/null <<-EOT
+					#!/bin/bash
+
+					csv_path=/home/${USER}/trunk-recorder/aliases
+
+					upload() {
+					    basename=\$(basename \$2)
+					    csv="\$2"
+					    name="\${basename%.*}"
+					    system=\$1
+
+					    curl -s http://localhost:3000/api/trunk-recorder-alias-upload \\
+					        -F "csv=@\$csv;type=text/csv" \\
+					        -F "key=${api_key}" \\
+					        -F "system=\$system"
+					}
+
+					#upload 1 "\$csv_path/RSP25MTL1.csv"
+					#upload 5 "\$csv_path/RSP25MTL5.csv"
+				EOT
+
+				echo | sudo -u $USER -i tee trunk-recorder/scripts/upload-call >/dev/null <<-EOT
+					#!/bin/bash
+
+					basename="\${2%.*}"
+
+					nice -n 19 fdkaac -o "\${basename}.m4a" -m3 -S "\${basename}.wav"
+
+					curl -s http://127.0.0.1:3000/api/trunk-recorder-call-upload \\
+					    -F "audio=@\${basename}.m4a;type=audio/aac" \\
+					    -F "key=${api_key}" \\
+					    -F "meta=@\${basename}.json;type=application/json" \\
+					    -F "system=\${1:-0}"
+
+					rm -f \${basename}.*
+				EOT
+
+				echo | sudo -u $USER -i tee trunk-recorder/scripts/upload-systems >/dev/null <<-EOT
+					#!/bin/bash
+
+					csv_path=/home/${USER}/trunk-recorder/talkgroups
+
+					upload() {
+					    basename=\$(basename \$2)
+					    csv="\$2"
+					    name="\${basename%.*}"
+					    system=\$1
+
+					curl -s http://localhost:3000/api/trunk-recorder-system-upload \\
+					        -F "csv=@\$csv;type=text/csv" \\
+					        -F "key=${api_key}" \\
+					        -F "name=\$name" \\
+					        -F "system=\$system"
+					}
+
+					upload 1 "\$csv_path/RSP25MTL1.csv"
+					upload 5 "\$csv_path/RSP25MTL5.csv"
+				EOT
+
+				sudo -u $USER -i bash -c "chmod a+x trunk-recorder/scripts/*"
+		fi
+	}
+
+	talkgroups() {
+		echo -n "### Checking Trunk Recorder talkgroups..."
+
+		if [ -d "/home/${USER}/trunk-recorder/talkgroups" ]
+			then
+				echo " ok"
+			else
+				echo " configuring..."
+
+				sudo -u $USER -i mkdir trunk-recorder/talkgroups
+
+				echo | sudo -u ${USER} -i tee trunk-recorder/talkgroups/RSP25MTL1.csv >/dev/null <<-EOT
+					54241,d3e1,D,ALPHA 1,MRC TDB Fire Alpha 1,Fire Dispatch,FIRE DISPATCH,1
+					54242,d3e2,D,BRAVO 1,MRC TDB Fire Bravo 1,Fire Tac,FIRE TAC,1
+					54243,d3e3,D,BRAVO 2,MRC TDB Fire Bravo 2,Fire Tac,FIRE TAC,1
+					54248,d3e8,D,BRAVO 3,MRC TDB Fire Bravo 3,Fire Tac,FIRE TAC,1
+					54251,d3eb,D,BRAVO 4,MRC TDB Fire Bravo 4,Fire Tac,FIRE TAC,1
+					54261,d3f5,D,BRAVO 5,MRC TDB Fire Bravo 5,Fire Tac,FIRE TAC,1
+					54244,d3e4,D,BRAVO 6,MRC TDB Fire Bravo 6,Fire Tac,FIRE TAC,1
+					54129,d371,D,BRAVO 7,MRC TDB Fire Bravo 7,Fire Tac,FIRE TAC,1
+					54125,d36d,D,BRAVO 8,MRC TDB Fire Bravo 8,Fire Tac,FIRE TAC,1
+					54005,d2f5,D,D-M FD,Deux-Montagnes Fire Dispatch,Fire Dispatch,FIRE DISPATCH,1
+					54239,d3df,D,SADP FD,Ste-Anne-des-Plaines Fire Dispatch,Fire Dispatch,FIRE DISPATCH,1
+					56201,db89,D,DSURGEN,YUL Security Dispatch,Security,SECURITY,2
+					56202,db8a,D,DSURTAC,YUL Security Tactical,Security,SECURITY,2
+					56203,db8b,D,DSUROP,YUL Security Operations,Security,SECURITY,2
+					56211,db93,D,DINCOPS,YUL Fire Dispatch,Fire Dispatch,FIRE DISPATCH,1
+					56212,db94,D,DINCTAC,YUL Tactical,Fire Tac,FIRE TAC,1
+					56218,db9a,D,DCCU,YUL CCU,Mesure d'urgence,EMERGENCY,3
+					56221,db9d,D,DBATIM,YUL Batiment,Utilities,UTILITY,3
+					56222,db9e,D,DSCHAMP,YUL SCHAMP,Utilities,UTILITY,3
+					56223,db9f,D,DFOULE,YUL Foule,Utilities,UTILITY,3
+					56224,dba0,D,DACCES,YUL Acces,Utilities,UTILITY,3
+					56225,dba1,D,DELECTR,YUL Electricity,Utilities,UTILITY,3
+					56226,dba2,D,DPISTE,YUL Piste,Utilities,UTILITY,3
+					56227,dba3,D,DTABLIER,YUL Tablier,Utilities,UTILITY,3
+					56228,dba4,D,DVTP,YUL VTP,Utilities,UTILITY,3
+					56229,dba5,D,DPONT,YUL Pont,Utilities,UTILITY,3
+					56232,dba8,D,DINSTALL,YUL Install,Utilities,UTILITY,3
+					56204,db8c,D,MSURGEN,YMX Security Dispatch,Security,SECURITY,3
+					56213,db95,D,MINCOPS,YMX Fire Dispatch,Fire Dispatch,FIRE DISPATCH,1
+					56214,db96,D,MINCTAC,YMX Fire Tactical,Fire Tac,FIRE TAC,1
+					56219,db9b,D,MCCU,YMX CCU,Mesure d'urgence,EMERGENCY,3
+					56231,dba7,D,MPISTE,YMX PISTE,Utilities,UTILITY,3
+				EOT
+
+				echo | sudo -u ${USER} -i tee trunk-recorder/talkgroups/RSP25MTL5.csv >/dev/null <<-EOT
+					54153,d389,D,ASSOMP FD,L'Assomption Fire Dispatch,Fire Dispatch,FIRE DISPATCH,1
+					54171,d39b,D,MASCOU FD,Mascouche Fire Dispatch,Fire Dispatch,FIRE DISPATCH,1
+					54141,d37d,D,REPENT FD1,Repentigny Fire Dispatch 1,Fire Dispatch,FIRE DISPATCH,1
+					54142,d37e,D,REPENT FD2,Repentigny Fire Dispatch 2,Fire Tac,FIRE TAC,1
+					54143,d37f,D,REPENT FO,Repentigny Fire Operations,Fire Tac ,FIRE TAC,1
+					54144,d380,D,REPENT FP,Repentigny Fire Prevention,Fire Talk,FIRE TALK,1
+					54145,d381,D,REPENT EM,Repentigny Emergency Measure,Emergency,EMERGENCY,1
+					54231,d3d7,D,TERREB FD,Terrebonne Fire Dispatch,Fire Dispatch,FIRE DISPATCH,1
+					54232,d3d8,D,TERREB FO,Terrebonne Fire Operations,Fire Tac,FIRE TAC,1
+				EOT
+
+				sudo -u $USER -i bash -c "cd trunk-recorder; ./scripts/upload-systems"
+		fi
+	}
+
+	config() {
+		echo -n "### Checking Trunk Recorder configuration..."
+
+		if [ -e "/home/${USER}/trunk-recorder/config.json" ]
+			then
+				echo " ok"
+			else
+				echo " configuring..."
+
+				echo | sudo -u $USER -i tee trunk-recorder/config.json >/dev/null <<-EOT
+					{
+					    "callTimeout": 5,
+					    "captureDir": "/home/${USER}/trunk-recorder/audio_files",
+					    "frequencyFormat": "mhz",
+					    "sources": [
+					        {
+					            "analogLevels": 8,
+					            "analogRecorders": 0,
+					            "center": 773031250,
+					            "device": "rtl=00000001",
+					            "debugRecorders": 0,
+					            "digitalLevels": 8,
+					            "digitalRecorders": 10,
+					            "driver": "osmosdr",
+					            "error": 0,
+					            "gain": 36.4,
+					            "modulation": "qpsk",
+					            "ppm": 0,
+					            "rate": 2400000,
+					            "squelch": 0
+					        }
+					    ],
+					    "statusAsString": true,
+					    "systems": [
+					        {
+					            "alphaTags": [],
+					            "audioArchive": false,
+					            "channels": [],
+					            "control_channels": [
+					                772031250,
+					                772281250,
+					                772531250,
+					                772781250,
+					                773281250,
+					                773531250,
+					                773781250,
+					                774031250
+					            ],
+					            "hideEncrypted": true,
+					            "hideUnknownTalkgroups": true,
+					            "minDuration": 0,
+					            "recordUnknown": false,
+					            "shortName": "RSP25MTL1",
+					            "talkgroupDisplayFormat": "tag_id",
+					            "talkgroupsFile": "talkgroups/RSP25MTL1.csv",
+					            "type": "p25",
+					            "uploadScript": "scripts/upload-call 1"
+					        },
+					        {
+					            "alphaTags": [],
+					            "audioArchive": false,
+					            "channels": [],
+					            "control_channels": [
+					                772556250,
+					                772306250,
+					                772806250,
+					                773306250,
+					                773556250,
+					                773806250
+					            ],
+					            "hideEncrypted": true,
+					            "hideUnknownTalkgroups": true,
+					            "minDuration": 0,
+					            "recordUnknown": false,
+					            "shortName": "RSP25MTL5",
+					            "talkgroupDisplayFormat": "tag_id",
+					            "talkgroupsFile": "talkgroups/RSP25MTL5.csv",
+					            "type": "p25",
+					            "uploadScript": "scripts/upload-call 5"
+					        }
+					    ]
+					}
+				EOT
+		fi
+	}
+
+	volk_profile() {
+		echo -n "### Checking Trunk Recorder volk profile..."
+
+		if [ -e "/home/${USER}/.volk/volk_config" ]
+			then
+				echo " ok"
+			else
+				echo " configuring..."
+
+				sudo -u $USER -i volk_profile
+		fi
+	}
+
+	systemd_service() {
+		echo -n "### Checking Trunk Recorder server systemd service..."
+
+		if [ -e "/etc/systemd/system/trunk-recorder.service" ]
+			then
+				echo " ok"
+			else
+				echo " configuring..."
+
+			echo | sudo tee /etc/systemd/system/trunk-recorder.service >/dev/null <<-EOT
+				[Unit]
+				Description=Trunk-Recorder
+
+				[Service]
+				User=$USER
+				Group=$USER
+				Environment=LC_ALL=en_US.utf8
+				WorkingDirectory=/home/${USER}/trunk-recorder
+				ExecStartPre=/bin/sh -c "rm -fr audio_files"
+				ExecStart=/home/${USER}/trunk-recorder/recorder
+				Restart=always
+
+				[Install]
+				WantedBy=multi-user.target
+			EOT
+
+			sudo systemctl daemon-reload
+
+			sudo systemctl start trunk-recorder.service
+		fi
+	}
+
+	systemd_timer() {
+		echo -n "### Checking Trunk Recorder server systemd timer..."
+
+		if [ -e "/etc/systemd/system/trunk-recorder.timer" ]
+			then
+				echo " ok"
+			else
+				echo " configuring..."
+
+			sudo tee /etc/systemd/system/trunk-recorder.timer >/dev/null <<-EOT
+				Description=Runs trunk-recorder.service 1 minute after boot up
+
+				[Timer]
+				OnBootSec=1m
+				Unit=trunk-recorder.service
+
+				[Install]
+				WantedBy=multi-user.target
+			EOT
+
+			sudo systemctl daemon-reload
+
+			sudo systemctl enable trunk-recorder.timer
+		fi
+	}
+
+	clone
+	configure
+	build
+	install
+	scripts
+	talkgroups
+	config
+	volk_profile
+	systemd_service
+	systemd_timer
+}
+
+setup_user() {
+	echo -n "### Checking user \"${USER}\"..."
+
+	if [ -n "$(id $USER 2>/dev/null)" ]
+		then
+			echo " ok"
+		else
+			echo " adding..."
+
+			sudo useradd -G adm,audio,cdrom,dialout,games,gpio,i2c,input,netdev,plugdev,spi,sudo,users,video -m -U $USER && \
+				echo $PASSWORD | sudo passwd --stdin $USER && \
+				echo "User $USER created with default password \"${PASSWORD}\" (remember to change it)"
+
+			echo -e "\nexport NODE_OPTIONS=--max-old-space-size=1024" | sudo tee -a /home/${USER}/.profile >/dev/null
+
+			echo "$USER ALL=(ALL) NOPASSWD: ALL" | sudo tee /etc/sudoers.d/010_${USER}-nopasswd >/dev/null && \
+				echo "Configure no password sudoers privileges for user $USER"
+
+			sudo chmod 440 /etc/sudoers.d/010_${USER}-nopasswd
+	fi
+}
+
+assert_os
+assert_sudo
+setup_swap
+setup_locale
+setup_nodejs
+setup_prerequisites
+setup_user
+setup_rdio_scanner
+setup_nginx
+setup_fdkaac
+setup_trunk_recorder
+
+cat <<-EOT
+	###
+	### The installation is now done!
+	###
+	### You can access Rdio Scanner at $(ip -4 -br addr | awk '/UP/ { gsub(/\/.*/, ""); print "http://"$3}')
+	###
+	### Remember to change ${USER}'s password the the default, which is "${PASSWORD}"
+	###
+EOT
