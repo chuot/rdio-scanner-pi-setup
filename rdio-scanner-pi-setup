@@ -688,8 +688,8 @@ setup_user() {
 		else
 			echo " adding..."
 
-			sudo useradd -G adm,audio,cdrom,dialout,games,gpio,i2c,input,netdev,plugdev,spi,sudo,users,video -m -U $USER && \
-				echo $PASSWORD | sudo passwd --stdin $USER && \
+			sudo useradd -G adm,audio,cdrom,dialout,games,gpio,i2c,input,netdev,plugdev,spi,sudo,users,video \
+			    -m -p $(echo $PASSWORD | openssl passwd -1 -stdin) -U $USER && \
 				echo "User $USER created with default password \"${PASSWORD}\" (remember to change it)"
 
 			echo -e "\nexport NODE_OPTIONS=--max-old-space-size=1024" | sudo tee -a /home/${USER}/.profile >/dev/null
