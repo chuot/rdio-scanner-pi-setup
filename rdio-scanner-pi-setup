@@ -719,6 +719,6 @@ cat <<-EOT
 	###
 	### You can access Rdio Scanner at $(ip -4 -br addr | awk '/UP/ { gsub(/\/.*/, ""); print "http://"$3}')
 	###
-	### Remember to change ${USER}'s password the the default, which is "${PASSWORD}"
+	### Remember to change ${USER}'s password from the default, which is "${PASSWORD}"
 	###
 EOT
