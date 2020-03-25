@@ -152,7 +152,7 @@ setup_prerequisites() {
 
 	echo -n "### Checking prerequisites..."
 
-	if $(dpkg-query -f '${Status}\n' -W $pkgs 2>&1 | grep -q -e 'not-installed' -e 'no packages found matching')
+	if $(LC_ALL=C dpkg-query -f '${Status}\n' -W $pkgs 2>&1 | grep -q -e 'not-installed' -e 'no packages found matching')
 		then
 			echo " installing..."
 
