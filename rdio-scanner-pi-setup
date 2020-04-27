@@ -148,7 +148,7 @@ setup_nodejs() {
 }
 
 setup_prerequisites() {
-	pkgs="autoconf automake build-essential cmake git gnuradio gnuradio-dev gr-osmosdr libboost-all-dev libhackrf-dev libssl-dev libuhd-dev pkg-config"
+	pkgs="autoconf automake build-essential cmake git gnuradio gnuradio-dev gr-osmosdr libboost-all-dev libcurl4-openssl-dev libhackrf-dev libssl-dev libuhd-dev pkg-config"
 
 	echo -n "### Checking prerequisites..."
 
