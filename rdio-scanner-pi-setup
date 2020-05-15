@@ -2,6 +2,7 @@
 
 USER=radio
 PASSWORD=scanner
+APIKEY=$(cat /proc/sys/kernel/random/uuid)
 
 abort() {
 	echo "Aborting!"
@@ -135,7 +136,7 @@ setup_nginx() {
 setup_nodejs() {
 	echo -n "### Checking Node.js availability..."
 
-	if [ -n "$(which node)" -a "$($(which node) -v)" \> "v10" ]
+	if [ -n "$(which node 2>/dev/null)" -a "$($(which node) -v)" \> "v10" ]
 		then
 			echo " ok"
 		else
@@ -148,7 +149,7 @@ setup_nodejs() {
 }
 
 setup_prerequisites() {
-	pkgs="autoconf automake build-essential cmake git gnuradio gnuradio-dev gr-osmosdr libboost-all-dev libcurl4-openssl-dev libhackrf-dev libssl-dev libuhd-dev pkg-config"
+	pkgs="autoconf automake build-essential cmake ffmpeg git gnuradio gnuradio-dev gr-osmosdr libboost-all-dev libcurl4-openssl-dev libhackrf-dev libssl-dev libuhd-dev pkg-config sox sqlite3"
 
 	echo -n "### Checking prerequisites..."
 
@@ -207,22 +208,402 @@ setup_rdio_scanner() {
 	config() {
 		echo -n "### Checking Rdio Scanner config..."
 
-		if [ -e "/home/${USER}/rdio-scanner/server/.env" ]
+		if [ -e "/home/${USER}/rdio-scanner/server/config.json" ]
 			then
 				echo " ok"
 			else
 				echo " configuring..."
 
-				sudo -u $USER tee /home/${USER}/rdio-scanner/server/.env >/dev/null <<-EOT
-					DB_DIALECT=sqlite
-					DB_STORAGE=database.sqlite
-
-					NODE_ENV=production
-					NODE_HOST=localhost
-					NODE_PORT=3000
-
-					RDIO_APIKEYS=["$(cat /proc/sys/kernel/random/uuid)"]
-					RDIO_PRUNEDAYS=7
+				sudo -u $USER tee /home/${USER}/rdio-scanner/server/config.json >/dev/null <<-EOT
+					{
+					    "nodejs": {
+					        "env": "production",
+					        "host": "0.0.0.0",
+					        "port": 3000
+				        },
+				        "sequelize": {
+					        "database": null,
+					        "dialect": "sqlite",
+					        "host": null,
+					        "password": null,
+					        "port": null,
+					        "storage": "database.sqlite",
+					        "username": null
+					    },
+					    "rdioScanner": {
+					        "access": null,
+					        "allowDownload": true,
+					        "apiKeys": [
+					            "$APIKEY"
+					        ],
+					        "pruneDays": 7,
+					        "systems": [
+					            {
+					                "id": 11,
+					                "label": "RSP25MTL1",
+					                "talkgroups": [
+						                {
+					                        "id": 54241,
+					                        "label": "TDB A1",
+					                        "name": "MRC TDB Fire Alpha 1",
+					                        "tag": "Fire Dispatch",
+					                        "group": "FIRE DISPATCH"
+					                    },
+					                    {
+					                        "id": 54242,
+					                        "label": "TDB B1",
+					                        "name": "MRC TDB Fire Bravo 1",
+					                        "tag": "Fire Tac",
+					                        "group": "FIRE TAC"
+					                    },
+					                    {
+					                        "id": 54243,
+					                        "label": "TDB B2",
+					                        "name": "MRC TDB Fire Bravo 2",
+					                        "tag": "Fire Tac",
+					                        "group": "FIRE TAC"
+					                    },
+					                    {
+					                        "id": 54248,
+					                        "label": "TDB B3",
+					                        "name": "MRC TDB Fire Bravo 3",
+					                        "tag": "Fire Tac",
+					                        "group": "FIRE TAC"
+					                    },
+					                    {
+					                        "id": 54251,
+					                        "label": "TDB B4",
+					                        "name": "MRC TDB Fire Bravo 4",
+					                        "tag": "Fire Tac",
+					                        "group": "FIRE TAC"
+					                    },
+					                    {
+					                        "id": 54261,
+					                        "label": "TDB B5",
+					                        "name": "MRC TDB Fire Bravo 5",
+					                        "tag": "Fire Tac",
+					                        "group": "FIRE TAC"
+					                    },
+					                    {
+					                        "id": 54244,
+					                        "label": "TDB B6",
+					                        "name": "MRC TDB Fire Bravo 6",
+					                        "tag": "Fire Tac",
+					                        "group": "FIRE TAC"
+					                    },
+					                    {
+					                        "id": 54129,
+					                        "label": "TDB B7",
+					                        "name": "MRC TDB Fire Bravo 7",
+					                        "tag": "Fire Tac",
+					                        "group": "FIRE TAC"
+					                    },
+					                    {
+					                        "id": 54125,
+					                        "label": "TDB B8",
+					                        "name": "MRC TDB Fire Bravo 8",
+					                        "tag": "Fire Tac",
+					                        "group": "FIRE TAC"
+					                    },
+					                    {
+					                        "id": 54005,
+					                        "label": "2MT FD",
+					                        "name": "MRC Deux-Montagnes Fire Dispatch",
+					                        "tag": "Fire Dispatch",
+					                        "group": "FIRE DISPATCH"
+					                    },
+					                    {
+					                        "id": 54004,
+					                        "label": "NC INC GEN",
+					                        "name": "North Crown Fire General",
+					                        "tag": "Fire Tac",
+					                        "group": "FIRE TAC"
+					                    },
+					                    {
+						                    "id": 54124,
+					                        "label": "BL INC GEN1",
+					                        "name": "Blainville Fire General 1",
+					                        "tag": "Fire Tac",
+					                        "group": "FIRE TAC"
+					                    },
+    					                {
+					                        "id": 54239,
+					                        "label": "STE-ADP FD",
+					                        "name": "Ste-Anne-des-Plaines Fire Dispatch",
+					                        "tag": "Fire Dispatch",
+					                        "group": "FIRE DISPATCH"
+					                    },
+					                    {
+					                        "id": 54200,
+					                        "label": "SE INC ANN",
+					                        "name": "St-Eustache Announcement",
+					                        "tag": "Fire Dispatch",
+					                        "group": "FIRE DISPATCH"
+					                    },
+					                    {
+					                        "id": 54201,
+					                        "label": "SE INC GEN",
+					                        "name": "St-Eustache General",
+					                        "tag": "Fire Dispatch",
+					                        "group": "FIRE DISPATCH"
+					                    },
+					                    {
+					                        "id": 54202,
+					                        "label": "SE INC OP1",
+					                        "name": "St-Eustache Operations",
+					                        "tag": "Fire Tac",
+					                        "group": "FIRE TAC"
+					                    },
+					                    {
+					                        "id": 54203,
+					                        "label": "SE INC PRV",
+					                        "name": "St-Eustache Prevention",
+					                        "tag": "Fire Talk",
+					                        "group": "FIRE TALK"
+					                    },
+					                    {
+					                        "id": 54206,
+					                        "label": "SE CCU",
+					                        "name": "St-Eustache Emergency",
+					                        "tag": "Emergency Ops",
+					                        "group": "EMERGENCY"
+					                    },
+					                    {
+					                        "id": 56201,
+					                        "label": "DSURGEN",
+					                        "name": "YUL Security Dispatch",
+					                        "tag": "Security",
+					                        "group": "SECURITY"
+					                    },
+					                    {
+					                        "id": 56202,
+					                        "label": "DSURTAC",
+					                        "name": "YUL Security Tactical",
+					                        "tag": "Security",
+					                        "group": "SECURITY"
+					                    },
+					                    {
+					                        "id": 56203,
+					                        "label": "DSUROP",
+					                        "name": "YUL Security Operations",
+					                        "tag": "Security",
+					                        "group": "SECURITY"
+					                    },
+					                    {
+					                        "id": 56211,
+					                        "label": "DINCOPS",
+					                        "name": "YUL Fire Dispatch",
+					                        "tag": "Fire Dispatch",
+					                        "group": "FIRE DISPATCH"
+					                    },
+					                    {
+					                        "id": 56212,
+					                        "label": "DINCTAC",
+					                        "name": "YUL Fire Dispatch",
+					                        "tag": "Fire Tac",
+					                        "group": "FIRE TAC"
+					                    },
+					                    {
+					                        "id": 56218,
+					                        "label": "DCCU",
+					                        "name": "YUL CCU",
+					                        "tag": "Emergency Ops",
+					                        "group": "EMERGENCY"
+					                    },
+					                    {
+					                        "id": 56221,
+					                        "label": "DBATIM",
+					                        "name": "YUL Batiment",
+					                        "tag": "Utility",
+					                        "group": "UTILITY"
+					                    },
+					                    {
+					                        "id": 56222,
+					                        "label": "DSCHAMP",
+					                        "name": "YUL SCHAMP",
+					                        "tag": "Utility",
+					                        "group": "UTILITY"
+					                    },
+					                    {
+					                        "id": 56223,
+					                        "label": "DFOULE",
+					                        "name": "YUL Foule",
+					                        "tag": "Utility",
+					                        "group": "UTILITY"
+					                    },
+					                    {
+					                        "id": 56224,
+					                        "label": "DACCESS",
+					                        "name": "YUL Access",
+					                        "tag": "Utility",
+					                        "group": "UTILITY"
+					                    },
+					                    {
+					                        "id": 56225,
+					                        "label": "DELECTR",
+					                        "name": "YUL Electricity",
+					                        "tag": "Utility",
+					                        "group": "UTILITY"
+					                    },
+					                    {
+					                        "id": 56226,
+					                        "label": "DPISTE",
+					                        "name": "YUL Piste",
+					                        "tag": "Utility",
+					                        "group": "UTILITY"
+					                    },
+					                    {
+					                        "id": 56227,
+					                        "label": "DTABLIER",
+					                        "name": "YUL Tablier",
+					                        "tag": "Utility",
+				                            "group": "UTILITY"
+					                    },
+					                    {
+					                        "id": 56228,
+					                        "label": "DVTP",
+					                        "name": "YUL VTP",
+					                        "tag": "Utility",
+					                        "group": "UTILITY"
+					                    },
+					                    {
+					                        "id": 56229,
+					                        "label": "DPONT",
+					                        "name": "YUL Pont",
+					                        "tag": "Utility",
+					                        "group": "UTILITY"
+					                    },
+					                    {
+					                        "id": 56232,
+					                        "label": "DINSTALL",
+					                        "name": "YUL Install",
+					                        "tag": "Utility",
+					                        "group": "UTILITY"
+					                    },
+					                    {
+					                        "id": 56204,
+					                        "label": "MSURGEN",
+					                        "name": "YMX Security Dispatch",
+					                        "tag": "Security",
+					                        "group": "SECURITY"
+					                    },
+					                    {
+					                        "id": 56213,
+					                        "label": "MINCOPS",
+					                        "name": "YMX Fire Dispatch",
+					                        "tag": "Fire Dispatch",
+					                        "group": "FIRE DISPATCH"
+					                    },
+					                    {
+					                        "id": 56214,
+					                        "label": "MINCTAC",
+					                        "name": "YMX Fire Tactical",
+					                        "tag": "Fire Tac",
+					                        "group": "FIRE TAC"
+					                    },
+					                    {
+					                        "id": 56219,
+					                        "label": "MCCU",
+					                        "name": "YMX CCU",
+					                        "tag": "Emergency Ops",
+					                        "group": "EMERGENCY"
+					                    },
+					                    {
+					                        "id": 56231,
+					                        "label": "MPISTE",
+					                        "name": "YMX Piste",
+					                        "tag": "Utility",
+					                        "group": "UTILITY"
+					                    }
+					                ],
+					                "units": [
+					                    {
+					                        "id": 4424001,
+					                        "label": "CAUCA"
+					                    }
+					                ]
+					            },
+					            {
+					                "id": 15,
+					                "label": "RSP25MTL5",
+					                "talkgroups": [
+					                    {
+					                        "id": 54153,
+					                        "label": "LA INC 1",
+					                        "name": "L'Assomption Fire Dispatch",
+					                        "tag": "Fire Dispatch",
+					                        "group": "FIRE DISPATCH"
+					                    },
+					                    {
+					                        "id": 54171,
+					                        "label": "MA INC 1",
+					                        "name": "Mascouche Fire Dispatch",
+					                        "tag": "Fire Dispatch",
+					                        "group": "FIRE DISPATCH"
+					                    },
+					                    {
+						                    "id": 54141,
+					                        "label": "RY INC 1",
+					                        "name": "Repentigny Fire Dispatch 1",
+					                        "tag": "Fire Dispatch",
+					                        "group": "FIRE DISPATCH"
+					                    },
+					                    {
+					                        "id": 54142,
+					                        "label": "RY INC 2",
+				                            "name": "Repentigny Fire Operations",
+					                        "tag": "Fire Tac",
+					                        "group": "FIRE TAC"
+					                    },
+					                    {
+					                        "id": 54143,
+					                        "label": "RY INC SPE",
+					                        "name": "Repentigny Fire Special",
+					                        "tag": "Fire Tac",
+					                        "group": "FIRE TAC"
+					                    },
+					                    {
+					                        "id": 54144,
+					                        "label": "RY INC PRV",
+					                        "name": "Repentigny Fire Prevention",
+					                        "tag": "Fire Talk",
+					                        "group": "FIRE TALK"
+					                    },
+					                    {
+					                        "id": 54145,
+					                        "label": "RY CCU",
+					                        "name": "Repentigny CCU",
+					                        "tag": "Emergency Ops",
+					                        "group": "EMERGENCY"
+					                    },
+					                    {
+					                        "id": 54231,
+					                        "label": "TB INC 1",
+					                        "name": "Terrebonne Fire Dispatch",
+					                        "tag": "Fire Dispatch",
+					                        "group": "FIRE DISPATCH"
+					                    },
+					                    {
+					                        "id": 54232,
+					                        "label": "TB INC 2",
+					                        "name": "Terrebonne Fire Operations",
+					                        "tag": "Fire Tac",
+					                        "group": "FIRE TAC"
+					                    }
+					                ],
+					                "units": [
+					                    {
+					                        "id": 4424001,
+					                        "label": "CAUCA"
+					                    }
+					                ]
+					            }
+					        ],
+					        "useDimmer": false,
+					        "useGroup": true,
+					        "useLed": true
+					    }
+					}
 				EOT
 		fi
 	}
@@ -383,65 +764,18 @@ setup_trunk_recorder() {
 
 				sudo -u $USER -i mkdir trunk-recorder/scripts
 
-				api_key=$(awk -F\" '/^RDIO_APIKEYS=/ { print $2 }' /home/${USER}/rdio-scanner/server/.env)
-
-				sudo -u $USER tee "/home/${USER}/trunk-recorder/scripts/upload-aliases" >/dev/null <<-EOT
-					#!/bin/bash
-
-					csv_path=/home/${USER}/trunk-recorder/aliases
-
-					upload() {
-					    basename=\$(basename \$2)
-					    csv="\$2"
-					    name="\${basename%.*}"
-					    system=\$1
-
-					    curl -s http://localhost:3000/api/trunk-recorder-alias-upload \\
-					        -F "csv=@\$csv;type=text/csv" \\
-					        -F "key=${api_key}" \\
-					        -F "system=\$system"
-					}
-
-					#upload 1 "\$csv_path/RSP25MTL1.csv"
-					#upload 5 "\$csv_path/RSP25MTL5.csv"
-				EOT
-
 				sudo -u $USER tee "/home/${USER}/trunk-recorder/scripts/upload-call" >/dev/null <<-EOT
 					#!/bin/bash
 
 					basename="\${2%.*}"
 
-					nice -n 19 fdkaac -o "\${basename}.m4a" -m3 -S "\${basename}.wav"
-
 					curl -s http://127.0.0.1:3000/api/trunk-recorder-call-upload \\
-					    -F "audio=@\${basename}.m4a;type=audio/aac" \\
-					    -F "key=${api_key}" \\
-					    -F "meta=@\${basename}.json;type=application/json" \\
+					    -F "key=${APIKEY}" \\
 					    -F "system=\${1:-0}"
+					    -F "audio=@\${basename}.wav;type=audio/wav" \\
+					    -F "meta=@\${basename}.json;type=application/json" \\
 
 					rm -f \${basename}.*
-				EOT
-
-				sudo -u $USER tee "/home/${USER}/trunk-recorder/scripts/upload-systems" >/dev/null <<-EOT
-					#!/bin/bash
-
-					csv_path=/home/${USER}/trunk-recorder/talkgroups
-
-					upload() {
-					    basename=\$(basename \$2)
-					    csv="\$2"
-					    name="\${basename%.*}"
-					    system=\$1
-
-					curl -s http://localhost:3000/api/trunk-recorder-system-upload \\
-					        -F "csv=@\$csv;type=text/csv" \\
-					        -F "key=${api_key}" \\
-					        -F "name=\$name" \\
-					        -F "system=\$system"
-					}
-
-					upload 1 "\$csv_path/RSP25MTL1.csv"
-					upload 5 "\$csv_path/RSP25MTL5.csv"
 				EOT
 
 				sudo -u $USER -i bash -c "chmod a+x trunk-recorder/scripts/*"
