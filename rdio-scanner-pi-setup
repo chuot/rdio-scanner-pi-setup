@@ -771,9 +771,9 @@ setup_trunk_recorder() {
 
 					curl -s http://127.0.0.1:3000/api/trunk-recorder-call-upload \\
 					    -F "key=${APIKEY}" \\
-					    -F "system=\${1:-0}"
+					    -F "system=\${1:-0}" \\
 					    -F "audio=@\${basename}.wav;type=audio/wav" \\
-					    -F "meta=@\${basename}.json;type=application/json" \\
+					    -F "meta=@\${basename}.json;type=application/json"
 
 					rm -f \${basename}.*
 				EOT
