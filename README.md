@@ -1,5 +1,7 @@
 # Rdio Scanner on a Raspberry Pi
 
+> DEPRECATED SINCE VERSION 4.3 OF [RDIO SCANNER](https://github.com/chuot/rdio-scanner). THE DOCKER INSTALLATION METHOD IS NOW RECOMMENDED FOR RASPBERRY PI.
+
 The purpose of this script is to simplify the procedure for installing a **fully functional P25 police radio scanner** using [Trunk Recorder](https://github.com/robotastic/trunk-recorder) and [Rdio Scanner](https://github.com/chuot/rdio-scanner) on a **Raspberry Pi**.
 
 If you do not yet know what it is all about, I encourage you to visit each of the sites mentioned above and read a little.
