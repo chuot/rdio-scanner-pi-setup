@@ -20,9 +20,9 @@ The installation script was tested on a **new installation** of **Raspbian Buste
 
 ### Step 1: Raspbian Installation
 
-Start with a fresh install of **Raspbian Buster Lite**:
+Start with a fresh install of **Raspberry Pi OS Lite**:
 
-* Install [Raspbian Buster Lite](https://www.raspberrypi.org/downloads/raspbian/) according to the [installation guide](https://www.raspberrypi.org/documentation/installation/installing-images/README.md).
+* Install [Raspberry Pi OS Lite](https://www.raspberrypi.org/software/operating-systems/) according to the [installation guide](https://www.raspberrypi.org/documentation/installation/installing-images/README.md).
 * If you prefer a headless installation type, follow these [instructions](https://www.raspberrypi.org/documentation/configuration/wireless/headless.md)
 * Use the [raspi-config](https://www.raspberrypi.org/documentation/configuration/raspi-config.md) for at least:
   * Change *pi* user password
