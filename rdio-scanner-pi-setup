@@ -21,7 +21,7 @@ USER=radio
 PASSWORD=scanner
 APIKEY=$(cat /proc/sys/kernel/random/uuid)
 
-TRUNKRECORDER_TAG=a4e5cd2
+TRUNKRECORDER_TAG=v3.3.7
 
 abort() {
 	echo "Aborting!"
