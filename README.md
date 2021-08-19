@@ -81,20 +81,20 @@ The preinstalled *Trunk Recorder* configuration files should be modified to suit
 **A: `journalctl -u rdio-scanner.service -f`**
 
 **Q: How do I restart/start/stop *Trunk Recorder*?**\
-**A: `sudo systemctl restart -u trunk-recorder.service`**\
-**A: `sudo systemctl start -u trunk-recorder.service`**\
-**A: `sudo systemctl stop -u trunk-recorder.service`**
+**A: `sudo systemctl restart trunk-recorder.service`**\
+**A: `sudo systemctl start trunk-recorder.service`**\
+**A: `sudo systemctl stop trunk-recorder.service`**
 
 **Q: How do I restart/start/stop *Rdio Scanner*?**\
-**A: `sudo systemctl restart -u rdio-scanner.service`**\
-**A: `sudo systemctl start -u rdio-scanner.service`**\
-**A: `sudo systemctl stop -u rdio-scanner.service`**
+**A: `sudo systemctl restart rdio-scanner.service`**\
+**A: `sudo systemctl start rdio-scanner.service`**\
+**A: `sudo systemctl stop rdio-scanner.service`**
 
 **Q: Where is *Trunk Recorder*'s configuration?**\
 **A: `/home/radio/trunk-recorder`**
 
 **Q: Where is *Rdio Scanner*'s configuration?**\
-**A: `/home/radio/rdio-scanner/server/.env`**
+**A: Basic server's configuration is at `/home/radio/rdio-scanner/server/config.json`, while the rest is done through the administrative interface**
 
 **Q: Should I modify *Trunk Recorder* script files?**\
 **A: Absolutely, but read the appropriate documentation to understand what you are doing**
