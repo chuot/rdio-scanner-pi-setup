@@ -1050,6 +1050,22 @@ start_services() {
 	echo " started"
 }
 
+deprecated() {
+	cat <<-EOF
+	!!! IMPORTANT NOTICE !!!
+
+	This installation script is no longer relevant as of Rdio Scanner v6.0.
+
+	You can now easily install your own instance of Rdio Scanner from a single executable file.
+	Refer to the PDF document supplied with the executable at https://github.com/chuot/rdio-scanner/releases.
+
+	EOF
+
+	exit 0
+}
+
+deprecated
+
 assert_os
 assert_sudo
 setup_swap
